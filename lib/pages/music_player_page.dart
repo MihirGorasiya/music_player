@@ -25,7 +25,6 @@ class MusicPlayerPage extends StatefulWidget {
 
 class _MusicPlayerPageState extends State<MusicPlayerPage> {
   final Controller c = Get.find();
-  late double sliderValue = 0;
   // late bool isMusicPlaying = true;
   @override
   Widget build(BuildContext context) {
@@ -44,8 +43,8 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                     color: Color.fromARGB(50, 68, 137, 255),
                     borderRadius: BorderRadius.circular(25.0),
                   ),
-                  height: 250,
-                  width: 250,
+                  height: MediaQuery.of(context).size.width * .8,
+                  width: MediaQuery.of(context).size.width * .8,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(15),
                     child: widget.audioPlayer.currentIndex!.isNaN
@@ -60,20 +59,18 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                 Text(widget.artistName),
                 SizedBox(
                   width: MediaQuery.of(context).size.width * 0.85,
-                  child: Slider(
-                    value: sliderValue,
-                    onChanged: (value) {
-                      sliderValue = value;
-                      setState(() {});
-                    },
-                    onChangeStart: (value) {
-                      sliderValue = value;
-                      setState(() {});
-                    },
-                    onChangeEnd: (value) {
-                      sliderValue = value;
-                      setState(() {});
-                    },
+                  child: Obx(
+                    () => Slider(
+                      value: c.sliderValue.value,
+                      onChanged: (value) {
+                        widget.audioPlayer.seek(Duration(
+                            seconds: (value * c.musicLengthInt.value).toInt()));
+                      },
+                      onChangeEnd: (value) {
+                        widget.audioPlayer.seek(Duration(
+                            seconds: (value * c.musicLengthInt.value).toInt()));
+                      },
+                    ),
                   ),
                 ),
                 SizedBox(
@@ -81,10 +78,8 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                          "${widget.audioPlayer.position.inMinutes}:${widget.audioPlayer.position.inSeconds}"),
-                      Text(
-                          "${widget.audioPlayer.duration?.inMinutes}:${widget.audioPlayer.duration!.inSeconds}"),
+                      Obx(() => Text(c.musicPosition.value)),
+                      Obx(() => Text(c.musicLength.value)),
                     ],
                   ),
                 ),
