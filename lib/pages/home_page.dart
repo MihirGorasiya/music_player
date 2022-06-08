@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
@@ -11,6 +12,7 @@ import 'package:music_player/controller/controller.dart';
 import 'package:music_player/pages/music_player_page.dart';
 import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'package:music_player/widgets/bottom_player_widget.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomePage extends StatefulWidget {
@@ -24,8 +26,9 @@ class _HomePageState extends State<HomePage> {
   final Controller c = Get.put(Controller());
   final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
   // --------Path Manager--------
-  var paths = [];
+  List<String> paths = [];
   List<Uint8List?> musicAlbumArts = [];
+  List<String> musicTrackNames = [];
   // String dirPath = '/storage/emulated/0/';
   String dirPath = '/storage/453E-10F7/music/My Fab';
   String currentMusicPath = '';
@@ -43,9 +46,21 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void initState() {
+    requestPermission();
     getPaths();
     setLastSongToPlayer();
     super.initState();
+  }
+
+  void requestPermission() async {
+    var status = await Permission.storage.status;
+    var status2 = await Permission.manageExternalStorage.status;
+    if (status.isDenied) {
+      await Permission.storage.request();
+    }
+    if (status2.isDenied) {
+      await Permission.manageExternalStorage.request();
+    }
   }
 
   void getPaths() async {
@@ -55,9 +70,11 @@ class _HomePageState extends State<HomePage> {
         .map((e) => e.path)
         .where((item) => item.endsWith(".mp3"))
         .toList();
+
     paths.sort();
-    getAlbumArts();
     setState(() {});
+    getAllTrackName();
+    getAllAlbumArts();
   }
 
   void setLastSongToPlayer() async {
@@ -70,6 +87,35 @@ class _HomePageState extends State<HomePage> {
     dur = (await player.setFilePath(musicPath))!;
     var metadata = await MetadataRetriever.fromFile(File(musicPath));
 
+    setCurrentMusicInfos(metadata, musicPath);
+
+    final SharedPreferences prefs = await _prefs;
+    prefs.setString('lastSong', musicPath);
+
+    isDurLoaded = true;
+
+    setControllerValues();
+
+    playInitially ? player.play() : null;
+
+    setState(() {});
+  }
+
+  void setControllerValues() {
+    c.musicLengthInt.value = player.duration!.inSeconds;
+    c.musicLength.value =
+        "${(player.duration!.inSeconds / 60).truncate().toString().padLeft(2, '0')}:${(player.duration!.inSeconds).remainder(60).toString().padLeft(2, '0')}";
+
+    Timer.periodic(Duration(seconds: 1), (Timer t) {
+      c.musicPosition.value =
+          "${(player.position.inSeconds / 60).truncate().toString().padLeft(2, '0')}:${(player.position.inSeconds).remainder(60).toString().padLeft(2, '0')}";
+
+      c.sliderValue.value =
+          player.position.inSeconds / player.duration!.inSeconds;
+    });
+  }
+
+  void setCurrentMusicInfos(Metadata metadata, String musicPath) {
     if (metadata.trackName != null) {
       trackName = metadata.trackName!;
     } else {
@@ -85,32 +131,26 @@ class _HomePageState extends State<HomePage> {
     if (metadata.albumArt != null) {
       albumArt = metadata.albumArt!;
     }
-
-    final SharedPreferences prefs = await _prefs;
-    prefs.setString('lastSong', musicPath);
-
-    isDurLoaded = true;
-    c.musicLengthInt.value = player.duration!.inSeconds;
-    c.musicLength.value =
-        "${(player.duration!.inSeconds / 60).truncate().toString().padLeft(2, '0')}:${(player.duration!.inSeconds).remainder(60).toString().padLeft(2, '0')}";
-
-    Timer.periodic(Duration(seconds: 1), (Timer t) {
-      c.musicPosition.value =
-          "${(player.position.inSeconds / 60).truncate().toString().padLeft(2, '0')}:${(player.position.inSeconds).remainder(60).toString().padLeft(2, '0')}";
-
-      c.sliderValue.value =
-          player.position.inSeconds / player.duration!.inSeconds;
-    });
-    playInitially ? player.play() : null;
-
-    setState(() {});
   }
 
-  void getAlbumArts() async {
+  void getAllAlbumArts() async {
     for (int i = 0; i < paths.length; i++) {
       var metadata = await MetadataRetriever.fromFile(File(paths[i]));
       musicAlbumArts.add(metadata.albumArt);
     }
+    setState(() {});
+  }
+
+  void getAllTrackName() async {
+    for (int i = 0; i < paths.length; i++) {
+      var metadata = await MetadataRetriever.fromFile(File(paths[i]));
+      if (metadata.trackName != null) {
+        musicTrackNames.add(metadata.trackName!);
+      } else {
+        musicTrackNames.add(paths[i].split('/').last.split('.').first);
+      }
+    }
+    // musicTrackNames.sort();
     setState(() {});
   }
 
@@ -136,7 +176,8 @@ class _HomePageState extends State<HomePage> {
                                     width: 50,
                                   )
                                 : Image.asset("assets/dummyImage.png"),
-                            title: Text(paths[index].split('/').last),
+                            // title: Text(paths[index].split('/').last),
+                            title: Text(musicTrackNames[index]),
                             onTap: () {
                               currentMusicPath = paths[index];
                               initAudioPlayer(currentMusicPath, true);

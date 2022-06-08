@@ -165,7 +165,7 @@
     },
     {
       "name": "path_provider",
-      "rootUri": "file:///C:/Users/Boomslang/Documents/flutter/.pub-cache/hosted/pub.dartlang.org/path_provider-2.0.10",
+      "rootUri": "file:///C:/Users/Boomslang/Documents/flutter/.pub-cache/hosted/pub.dartlang.org/path_provider-2.0.11",
       "packageUri": "lib/",
       "languageVersion": "2.14"
     },
@@ -204,6 +204,36 @@
       "rootUri": "file:///C:/Users/Boomslang/Documents/flutter/.pub-cache/hosted/pub.dartlang.org/path_provider_windows-2.1.0",
       "packageUri": "lib/",
       "languageVersion": "2.17"
+    },
+    {
+      "name": "permission_handler",
+      "rootUri": "file:///C:/Users/Boomslang/Documents/flutter/.pub-cache/hosted/pub.dartlang.org/permission_handler-9.2.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.15"
+    },
+    {
+      "name": "permission_handler_android",
+      "rootUri": "file:///C:/Users/Boomslang/Documents/flutter/.pub-cache/hosted/pub.dartlang.org/permission_handler_android-9.0.2+1",
+      "packageUri": "lib/",
+      "languageVersion": "2.15"
+    },
+    {
+      "name": "permission_handler_apple",
+      "rootUri": "file:///C:/Users/Boomslang/Documents/flutter/.pub-cache/hosted/pub.dartlang.org/permission_handler_apple-9.0.4",
+      "packageUri": "lib/",
+      "languageVersion": "2.15"
+    },
+    {
+      "name": "permission_handler_platform_interface",
+      "rootUri": "file:///C:/Users/Boomslang/Documents/flutter/.pub-cache/hosted/pub.dartlang.org/permission_handler_platform_interface-3.7.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.14"
+    },
+    {
+      "name": "permission_handler_windows",
+      "rootUri": "file:///C:/Users/Boomslang/Documents/flutter/.pub-cache/hosted/pub.dartlang.org/permission_handler_windows-0.1.0",
+      "packageUri": "lib/",
+      "languageVersion": "2.12"
     },
     {
       "name": "platform",
@@ -356,7 +386,7 @@
       "languageVersion": "2.17"
     }
   ],
-  "generated": "2022-06-07T05:15:14.559088Z",
+  "generated": "2022-06-08T04:25:53.043035Z",
   "generator": "pub",
   "generatorVersion": "2.17.1"
 }
