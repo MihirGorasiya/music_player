@@ -1,10 +1,9 @@
-// ignore_for_file: prefer_typing_uninitialized_variables, prefer_const_constructors
+// ignore_for_file: prefer_typing_uninitialized_variables, prefer_const_constructors, avoid_print
 
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
@@ -12,6 +11,7 @@ import 'package:music_player/controller/controller.dart';
 import 'package:music_player/pages/music_player_page.dart';
 import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'package:music_player/widgets/bottom_player_widget.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -25,12 +25,14 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final Controller c = Get.put(Controller());
   final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
+
   // --------Path Manager--------
-  List<String> paths = [];
+  List<String> dirPaths = [];
+  List<String> musicPaths = [];
   List<Uint8List?> musicAlbumArts = [];
   List<String> musicTrackNames = [];
-  // String dirPath = '/storage/emulated/0/';
-  String dirPath = '/storage/453E-10F7/music/My Fab';
+  String internalDirPath = '/storage/emulated/0/';
+  String externalDirPath = '/storage/453E-10F7/';
   String currentMusicPath = '';
   // bool isDrawerOpen = false;
 
@@ -43,6 +45,9 @@ class _HomePageState extends State<HomePage> {
   String trackName = 'Track Name';
   String artistName = 'Artist Name';
   late Uint8List albumArt;
+
+  // --------Temp Variables--------
+  int currentImportingIndex = 0;
 
   @override
   void initState() {
@@ -64,14 +69,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   void getPaths() async {
-    var dir = Directory(dirPath);
-    paths = dir
-        .listSync(recursive: true)
+    await Future.delayed(Duration(seconds: 1));
+    var dir = Directory(internalDirPath);
+    dirPaths = dir
+        .listSync()
         .map((e) => e.path)
-        .where((item) => item.endsWith(".mp3"))
+        // .where((item) => !item.startsWith("."))
         .toList();
 
-    paths.sort();
+    dirPaths.addAll(Directory(externalDirPath)
+        .listSync()
+        .map((e) => e.path)
+        // .where((item) => !item.startsWith("."))
+        .toList());
+
+    for (int i = 0; i < dirPaths.length; i++) {
+      if (dirPaths[i].split('/').last.contains('.') ||
+          dirPaths[i].split('/').last.contains('Android')) {
+        dirPaths.removeAt(i);
+      } else {
+        print("Path:::${dirPaths[i]}");
+        Directory path = Directory("${dirPaths[i]}/");
+        musicPaths.addAll(path
+            .listSync(recursive: true)
+            .map((e) => e.path)
+            .where((item) => item.endsWith('.mp3'))
+            .toList());
+      }
+    }
+
     setState(() {});
     getAllTrackName();
     getAllAlbumArts();
@@ -134,20 +160,45 @@ class _HomePageState extends State<HomePage> {
   }
 
   void getAllAlbumArts() async {
-    for (int i = 0; i < paths.length; i++) {
-      var metadata = await MetadataRetriever.fromFile(File(paths[i]));
+    for (int i = 0; i < musicPaths.length; i++) {
+      var metadata = await MetadataRetriever.fromFile(File(musicPaths[i]));
       musicAlbumArts.add(metadata.albumArt);
+
+      Directory? externalDirectory = await getExternalStorageDirectory();
+      String imageDirectoryPath = "${externalDirectory!.path}/cacheImages/";
+
+      String tName = "";
+      if (!Directory("${externalDirectory.path}/cacheImages/").existsSync()) {
+        await Directory("${externalDirectory.path}/cacheImages/").create();
+      }
+      if (metadata.trackName != null) {
+        tName = metadata.trackName!;
+      }
+      if (tName.contains('/')) {
+        tName = metadata.trackName!.split("/").join('');
+      }
+
+      File imageFile = File('$imageDirectoryPath$tName.png');
+
+      if (!imageFile.existsSync()) {
+        await imageFile.create();
+      }
+      if (metadata.albumArt != null) {
+        await imageFile.writeAsBytes(metadata.albumArt!);
+      }
+
+      currentImportingIndex = i;
+      setState(() {});
     }
-    setState(() {});
   }
 
   void getAllTrackName() async {
-    for (int i = 0; i < paths.length; i++) {
-      var metadata = await MetadataRetriever.fromFile(File(paths[i]));
+    for (int i = 0; i < musicPaths.length; i++) {
+      var metadata = await MetadataRetriever.fromFile(File(musicPaths[i]));
       if (metadata.trackName != null) {
         musicTrackNames.add(metadata.trackName!);
       } else {
-        musicTrackNames.add(paths[i].split('/').last.split('.').first);
+        musicTrackNames.add(musicPaths[i].split('/').last.split('.').first);
       }
     }
     // musicTrackNames.sort();
@@ -164,9 +215,10 @@ class _HomePageState extends State<HomePage> {
           Column(
             children: [
               Expanded(
-                child: (paths.isNotEmpty && musicAlbumArts.length > 25)
+                child: (musicPaths.isNotEmpty &&
+                        musicAlbumArts.length == musicPaths.length)
                     ? ListView.builder(
-                        itemCount: paths.length,
+                        itemCount: musicPaths.length,
                         itemBuilder: (context, index) {
                           return ListTile(
                             leading: musicAlbumArts[index] != null
@@ -179,14 +231,25 @@ class _HomePageState extends State<HomePage> {
                             // title: Text(paths[index].split('/').last),
                             title: Text(musicTrackNames[index]),
                             onTap: () {
-                              currentMusicPath = paths[index];
+                              currentMusicPath = musicPaths[index];
                               initAudioPlayer(currentMusicPath, true);
                               setState(() {});
                             },
                           );
                         },
                       )
-                    : Center(child: const CircularProgressIndicator()),
+                    : Center(
+                        child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(
+                            height: 30,
+                          ),
+                          Text(
+                              "importing File ${currentImportingIndex} out of ${musicPaths.length}."),
+                        ],
+                      )),
               ),
               SizedBox(
                 height: 75,
