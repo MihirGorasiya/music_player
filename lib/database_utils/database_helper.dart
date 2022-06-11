@@ -42,9 +42,25 @@ class DatabaseHelper {
     );
   }
 
+  static Future<void> deleteData() async {
+    try {
+      final db = await _getDB();
+      await db.transaction((txn) async {
+        var batch = txn.batch();
+        batch.delete('songInfo');
+        await batch.commit();
+      });
+    } catch (e) {
+      print(e);
+    }
+  }
+
   static Future<List<SongInfo>?> getAllNotes() async {
     final db = await _getDB();
-    final List<Map<String, dynamic>> maps = await db.query("songInfo");
+    final List<Map<String, dynamic>> maps = await db.query(
+      "songInfo",
+      orderBy: "songName ASC",
+    );
     if (maps.isEmpty) return null;
     return List.generate(
       maps.length,

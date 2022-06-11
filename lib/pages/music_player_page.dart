@@ -1,7 +1,5 @@
 // ignore_for_file: prefer_const_constructors, prefer_typing_uninitialized_variables,prefer_const_literals_to_create_immutables
 
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
@@ -16,7 +14,7 @@ class MusicPlayerPage extends StatefulWidget {
       required this.artistName})
       : super(key: key);
   final AudioPlayer audioPlayer;
-  final Uint8List? albumArt;
+  final Image albumArt;
   final String trackName;
   final String artistName;
   @override
@@ -47,9 +45,10 @@ class _MusicPlayerPageState extends State<MusicPlayerPage> {
                   width: MediaQuery.of(context).size.width * .8,
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(15),
-                    child: widget.audioPlayer.currentIndex!.isNaN
-                        ? Image.asset("assets/dummyImage.png")
-                        : Image.memory(widget.albumArt!),
+                    child: widget.albumArt,
+                    // child: widget.audioPlayer.currentIndex!.isNaN
+                    //     ? Image.asset("assets/dummyImage.png")
+                    //     : Image.memory(widget.albumArt),
                   ),
                 ),
                 SizedBox(

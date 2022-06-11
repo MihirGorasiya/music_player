@@ -1,4 +1,4 @@
-// ignore_for_file: prefer_typing_uninitialized_variables, prefer_const_constructors, avoid_print
+// ignore_for_file: prefer_typing_uninitialized_variables, prefer_const_constructors, avoid_print, prefer_const_literals_to_create_immutables
 
 import 'dart:async';
 import 'dart:io';
@@ -8,6 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:music_player/controller/controller.dart';
+import 'package:music_player/database_utils/SongInfo.dart';
+import 'package:music_player/database_utils/database_helper.dart';
 import 'package:music_player/pages/music_player_page.dart';
 import 'package:flutter_media_metadata/flutter_media_metadata.dart';
 import 'package:music_player/widgets/bottom_player_widget.dart';
@@ -25,63 +27,68 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final Controller c = Get.put(Controller());
   final Future<SharedPreferences> _prefs = SharedPreferences.getInstance();
+  late Future<List<SongInfo>?>? future;
 
   // --------Path Manager--------
   List<String> dirPaths = [];
   List<String> musicPaths = [];
-  List<Uint8List?> musicAlbumArts = [];
   List<String> musicTrackNames = [];
+  List<Uint8List?> musicAlbumArts = [];
   String internalDirPath = '/storage/emulated/0/';
   String externalDirPath = '/storage/453E-10F7/';
   String currentMusicPath = '';
-  // bool isDrawerOpen = false;
+  bool isDatabaseCreated = false;
 
   // --------Audio Manager--------
   AudioPlayer player = AudioPlayer();
   late Duration dur;
-  bool isDurLoaded = false;
 
   // --------Matadata--------
   String trackName = 'Track Name';
   String artistName = 'Artist Name';
-  late Uint8List albumArt;
-
-  // --------Temp Variables--------
-  int currentImportingIndex = 0;
+  Image albumArt = Image.asset("assets/dummyImage.png");
 
   @override
   void initState() {
     requestPermission();
-    getPaths();
     setLastSongToPlayer();
     super.initState();
   }
 
   void requestPermission() async {
     var status = await Permission.storage.status;
-    var status2 = await Permission.manageExternalStorage.status;
+
     if (status.isDenied) {
       await Permission.storage.request();
+      await Permission.storage.isGranted;
+      scanInitially();
+    } else if (status.isGranted) {
+      scanInitially();
     }
-    if (status2.isDenied) {
-      await Permission.manageExternalStorage.request();
+  }
+
+  void scanInitially() async {
+    Directory? dir = await getExternalStorageDirectory();
+    String path = '${dir!.path}/songInfos';
+
+    if (!(File("$path/songInfo.db").existsSync())) {
+      getPaths();
+    } else {
+      setState(() {
+        future = DatabaseHelper.getAllNotes();
+        isDatabaseCreated = true;
+      });
     }
   }
 
   void getPaths() async {
+    DatabaseHelper.deleteData();
     await Future.delayed(Duration(seconds: 1));
     var dir = Directory(internalDirPath);
-    dirPaths = dir
-        .listSync()
-        .map((e) => e.path)
-        // .where((item) => !item.startsWith("."))
-        .toList();
+    dirPaths = dir.listSync().map((e) => e.path).toList();
 
-    dirPaths.addAll(Directory(externalDirPath)
-        .listSync()
-        .map((e) => e.path)
-        // .where((item) => !item.startsWith("."))
-        .toList());
+    dirPaths.addAll(
+        Directory(externalDirPath).listSync().map((e) => e.path).toList());
 
     for (int i = 0; i < dirPaths.length; i++) {
       if (dirPaths[i].split('/').last.contains('.') ||
@@ -98,14 +105,15 @@ class _HomePageState extends State<HomePage> {
       }
     }
 
-    setState(() {});
-    getAllTrackName();
     getAllAlbumArts();
+    setState(() {});
   }
 
   void setLastSongToPlayer() async {
     final SharedPreferences prefs = await _prefs;
-    initAudioPlayer(prefs.getString('lastSong')!, false);
+    if (prefs.getString('lastSong') != null) {
+      initAudioPlayer(prefs.getString('lastSong')!, false);
+    }
   }
 
   void initAudioPlayer(String musicPath, bool playInitially) async {
@@ -117,8 +125,6 @@ class _HomePageState extends State<HomePage> {
 
     final SharedPreferences prefs = await _prefs;
     prefs.setString('lastSong', musicPath);
-
-    isDurLoaded = true;
 
     setControllerValues();
 
@@ -155,7 +161,9 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (metadata.albumArt != null) {
-      albumArt = metadata.albumArt!;
+      albumArt = Image.memory(metadata.albumArt!);
+    } else {
+      albumArt = Image.asset("assets/dummyImage.png");
     }
   }
 
@@ -173,6 +181,8 @@ class _HomePageState extends State<HomePage> {
       }
       if (metadata.trackName != null) {
         tName = metadata.trackName!;
+      } else {
+        tName = "dummyImage";
       }
       if (tName.contains('/')) {
         tName = metadata.trackName!.split("/").join('');
@@ -186,56 +196,106 @@ class _HomePageState extends State<HomePage> {
       if (metadata.albumArt != null) {
         await imageFile.writeAsBytes(metadata.albumArt!);
       }
-
-      currentImportingIndex = i;
-      setState(() {});
+      print("track name: ${tName}");
+      DatabaseHelper.addData(
+        SongInfo(
+          songName: tName == "dummyImage"
+              ? musicPaths[i].split('/').last.split('.').first
+              : tName,
+          songPath: musicPaths[i],
+          imagePath: imageFile.path,
+        ),
+      );
     }
-  }
-
-  void getAllTrackName() async {
-    for (int i = 0; i < musicPaths.length; i++) {
-      var metadata = await MetadataRetriever.fromFile(File(musicPaths[i]));
-      if (metadata.trackName != null) {
-        musicTrackNames.add(metadata.trackName!);
-      } else {
-        musicTrackNames.add(musicPaths[i].split('/').last.split('.').first);
-      }
-    }
-    // musicTrackNames.sort();
-    setState(() {});
+    setState(() {
+      future = DatabaseHelper.getAllNotes();
+      isDatabaseCreated = true;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Music Player")),
+      appBar: AppBar(
+        title: const Text("Music Player"),
+        actions: [
+          IconButton(
+              onPressed: () {
+                getPaths();
+              },
+              icon: Icon(Icons.refresh)),
+          SizedBox(
+            width: 10,
+          ),
+        ],
+      ),
       body: Stack(
         fit: StackFit.expand,
         children: [
           Column(
             children: [
               Expanded(
-                child: (musicPaths.isNotEmpty &&
-                        musicAlbumArts.length == musicPaths.length)
-                    ? ListView.builder(
-                        itemCount: musicPaths.length,
-                        itemBuilder: (context, index) {
-                          return ListTile(
-                            leading: musicAlbumArts[index] != null
-                                ? Image.memory(
-                                    musicAlbumArts[index]!,
-                                    height: 50,
-                                    width: 50,
-                                  )
-                                : Image.asset("assets/dummyImage.png"),
-                            // title: Text(paths[index].split('/').last),
-                            title: Text(musicTrackNames[index]),
-                            onTap: () {
-                              currentMusicPath = musicPaths[index];
-                              initAudioPlayer(currentMusicPath, true);
-                              setState(() {});
-                            },
-                          );
+                child: isDatabaseCreated
+                    ? FutureBuilder<List<SongInfo>?>(
+                        future: future,
+                        builder:
+                            (context, AsyncSnapshot<List<SongInfo>?> snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  CircularProgressIndicator(),
+                                  SizedBox(
+                                    height: 30,
+                                  ),
+                                  Text("importing File ."),
+                                ],
+                              ),
+                            );
+                          } else if (snapshot.hasError) {
+                            return Center(child: Text("${snapshot.error}"));
+                          } else if (snapshot.hasData) {
+                            return Scrollbar(
+                              thumbVisibility: true,
+                              thickness: 10,
+                              child: ListView.builder(
+                                itemCount: snapshot.data!.length,
+                                itemBuilder: (context, index) {
+                                  return ListTile(
+                                    leading: ClipRRect(
+                                      borderRadius: BorderRadius.circular(10),
+                                      child:
+                                          File(snapshot.data![index].imagePath)
+                                                      .lengthSync() >
+                                                  2000
+                                              ? Image.file(
+                                                  File(snapshot
+                                                      .data![index].imagePath),
+                                                  height: 50,
+                                                  width: 50)
+                                              : Image.asset(
+                                                  "assets/dummyImage.png",
+                                                  height: 50,
+                                                  width: 50),
+                                    ),
+                                    title: Text(snapshot.data![index].songName),
+                                    onTap: () {
+                                      currentMusicPath =
+                                          snapshot.data![index].songPath;
+                                      initAudioPlayer(currentMusicPath, true);
+                                      setState(() {});
+                                    },
+                                  );
+                                },
+                              ),
+                            );
+                          } else {
+                            return Center(
+                              child: Text("importing File....."),
+                            );
+                          }
                         },
                       )
                     : Center(
@@ -246,8 +306,7 @@ class _HomePageState extends State<HomePage> {
                           SizedBox(
                             height: 30,
                           ),
-                          Text(
-                              "importing File ${currentImportingIndex} out of ${musicPaths.length}."),
+                          Text("Importing Files."),
                         ],
                       )),
               ),
@@ -268,9 +327,7 @@ class _HomePageState extends State<HomePage> {
                     player: player,
                     trackName: trackName,
                     artistName: artistName,
-                    artImage: isDurLoaded
-                        ? Image.memory(albumArt)
-                        : Image.asset("assets/dummyImage.png"),
+                    artImage: albumArt,
                   ),
           ),
         ],
@@ -278,56 +335,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-
-// player.currentIndex!.isNaN
-//                                       ? Image.asset("assets/dummyImage.png")
-//                                       : Image.memory(albumArt)
-
-// if (isDrawerOpen)
-            //   MusicPlayerPage(
-            //     audioPlayer: player,
-            //     albumArt: albumArt,
-            //     trackName: trackName,
-            //     artistName: artistName,
-            //   )
-            // else
-            //   Positioned(
-            //     bottom: 0,
-            //     child: InkWell(
-            //       onTap: () {
-            //         isDrawerOpen = !isDrawerOpen;
-            //         setState(() {});
-            //       },
-            //       child: Container(
-            //         color: Colors.deepOrange,
-            //         height: 75,
-            //         width: MediaQuery.of(context).size.width,
-            //         child: Row(
-            //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            //           children: [
-            //             Image.asset("assets/dummyImage.png"),
-            //             SizedBox(
-            //               width: MediaQuery.of(context).size.width * 0.6,
-            //               child: Column(
-            //                 crossAxisAlignment: CrossAxisAlignment.start,
-            //                 children: [
-            //                   Text(trackName),
-            //                   Text(artistName),
-            //                 ],
-            //               ),
-            //             ),
-            //             Container(
-            //               color: Colors.blue,
-            //               child: IconButton(
-            //                 iconSize: 55,
-            //                 onPressed: () {},
-            //                 icon: Icon(
-            //                   Icons.play_arrow_rounded,
-            //                 ),
-            //               ),
-            //             )
-            //           ],
-            //         ),
-            //       ),
-            //     ),
-            //   )

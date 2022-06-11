@@ -39,7 +39,14 @@ class _BottomPlayerWidgetState extends State<BottomPlayerWidget> {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              widget.artImage,
+              SizedBox(
+                height: 75,
+                width: 75,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(15),
+                  child: widget.artImage,
+                ),
+              ),
               SizedBox(
                 width: (MediaQuery.of(context).size.width - 220),
                 child: Column(
